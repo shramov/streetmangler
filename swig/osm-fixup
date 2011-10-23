@@ -7,7 +7,7 @@ from streetmangler import Locale, Database
 import lxml.etree as ET
 
 if len(sys.argv) < 3:
-    print "Usage: %s db.txt file.osm" % sys.argv[0]
+    print "Usage: %s db.txt file.osm [subs.txt]" % sys.argv[0]
     sys.exit(1)
 
 db = Database(Locale('ru_RU'))
@@ -18,6 +18,13 @@ if sys.argv[2] == '-':
 else:
     fp = open(sys.argv[2])
 
+subs = {}
+if sys.argv[3:4]:
+    for l in open(sys.argv[3]):
+        l = l.strip()
+        if not l: continue
+        subs.update([map(str.strip, l.split(':', 1))])
+
 xml = ET.parse(fp)
 
 cache = {}
@@ -25,11 +32,15 @@ for t in xml.xpath('//tag[@k="addr:street"]'):
     street = t.attrib['v'].encode('utf-8')
     if not street:
         continue
+    street = subs.get(street, street)
     if street in cache:
         t.attrib['v'] = cache[street]
         continue
     canonical = db.CheckCanonicalForm(street)
     if not canonical:
+        canonical = db.CheckSpelling(street)
+    if not canonical:
+        sys.stderr.write('No canonical name: %s\n' % street)
         continue
     #print "%s -> %s" % (street, ', '.join(canonical))
     t.attrib['v'] = cache[street] = canonical[0].decode('utf-8')
